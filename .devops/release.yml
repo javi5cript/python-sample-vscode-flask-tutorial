@@ -18,6 +18,11 @@ steps:
     inputs:
       versionSpec: '$(python.version)'
 
+  - script: |
+      python -m pip install --upgrade pip
+      pip install -r requirements.txt
+    displayName: 'Install dependencies'
+    
   - task: MicrosoftSecurityDevOps@1
     displayName: 'Initialize CodeQL'
     inputs:
@@ -27,18 +32,15 @@ steps:
   - task: MicrosoftSecurityDevOps@1
     displayName: 'Perform CodeQL Analysis'
 
-  - task: PublishBuildArtifacts@1
-    displayName: 'Publish Security Scan Results'
-    inputs:
-      PathtoPublish: '$(Build.SourcesDirectory)/.msdo'
-      ArtifactName: 'security-scan-results'
-      publishLocation: 'Container'
+  # - task: PublishBuildArtifacts@1
+  #   displayName: 'Publish Security Scan Results'
+  #   inputs:
+  #     PathtoPublish: '$(Build.SourcesDirectory)/.msdo'
+  #     ArtifactName: 'security-scan-results'
+  #     publishLocation: 'Container'
 
 
-  # - script: |
-  #     python -m pip install --upgrade pip
-  #     pip install -r requirements.txt
-  #   displayName: 'Install dependencies'
+
 
   # - task: ArchiveFiles@2
   #   displayName: 'Archive files'
