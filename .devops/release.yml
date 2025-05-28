@@ -28,12 +28,19 @@ steps:
   - task: MicrosoftSecurityDevOps@1
     displayName: 'Perform CodeQL Analysis'
     
-  - task: PublishSecurityAnalysisLogs@1
-    displayName: 'Publish Security Analysis Results'
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish SARIF Results'
     inputs:
-      ArtifactName: 'CodeQL Security Results'
-      AllTools: true
-      ToolLogsNotFoundAction: 'Standard'
+      PathtoPublish: '$(Agent.TempDirectory)/CodeAnalysisLogs'
+      ArtifactName: 'CodeAnalysisLogs'
+      publishLocation: 'Container'
+      
+  - task: SARIF@1
+    displayName: 'Publish to Security DevOps Extension'
+    inputs:
+      sarif: '$(Agent.TempDirectory)/CodeAnalysisLogs/**/*.sarif'
+      buildDefinitionName: '$(Build.DefinitionName)'
+      buildNumber: '$(Build.BuildNumber)'
 
   # - script: |
   #     python -m pip install --upgrade pip
