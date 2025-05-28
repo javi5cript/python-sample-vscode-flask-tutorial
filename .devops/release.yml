@@ -1,4 +1,3 @@
-
 trigger:
   - main
 
@@ -28,7 +27,13 @@ steps:
 
   - task: MicrosoftSecurityDevOps@1
     displayName: 'Perform CodeQL Analysis'
-
+    
+  - task: PublishSecurityAnalysisLogs@3
+    displayName: 'Publish Security Analysis Results'
+    inputs:
+      ArtifactName: 'CodeQL Security Results'
+      AllTools: true
+      ToolLogsNotFoundAction: 'Standard'
 
   # - script: |
   #     python -m pip install --upgrade pip
