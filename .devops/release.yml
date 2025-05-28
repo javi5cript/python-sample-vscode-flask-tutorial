@@ -17,7 +17,6 @@ steps:
   - task: UsePythonVersion@0
     inputs:
       versionSpec: '$(python.version)'
-    displayName: 'Use Python $(python.version)'
 
   - task: MicrosoftSecurityDevOps@1
     displayName: 'Initialize CodeQL'
@@ -27,20 +26,14 @@ steps:
 
   - task: MicrosoftSecurityDevOps@1
     displayName: 'Perform CodeQL Analysis'
-    
+
   - task: PublishBuildArtifacts@1
-    displayName: 'Publish SARIF Results'
+    displayName: 'Publish Security Scan Results'
     inputs:
-      PathtoPublish: '$(Agent.TempDirectory)/CodeAnalysisLogs'
-      ArtifactName: 'CodeAnalysisLogs'
+      PathtoPublish: '$(Build.SourcesDirectory)/.msdo'
+      ArtifactName: 'security-scan-results'
       publishLocation: 'Container'
-      
-  - task: SARIF@1
-    displayName: 'Publish to Security DevOps Extension'
-    inputs:
-      sarif: '$(Agent.TempDirectory)/CodeAnalysisLogs/**/*.sarif'
-      buildDefinitionName: '$(Build.DefinitionName)'
-      buildNumber: '$(Build.BuildNumber)'
+
 
   # - script: |
   #     python -m pip install --upgrade pip
