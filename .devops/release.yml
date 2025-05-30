@@ -5,15 +5,13 @@ variables:
   pythonVersion: '3.12'
   artifactName: 'drop'
   appServiceName: 'appservice-javi'
-  serviceConnection: 'deployment'
-  environmentName: 'production'
+  # PUBLISH_PROFILE should be set as a pipeline secret variable
 
 stages:
   - stage: BuildAndTest
     displayName: 'Build and Test'
     jobs:
       - job: Build
-        displayName: 'Build and Test'
         pool:
           vmImage: ubuntu-latest
         steps:
@@ -65,27 +63,44 @@ stages:
     dependsOn: BuildAndTest
     condition: succeeded()
     jobs:
-      - deployment: DeployAppService
-        displayName: 'Deploy to Azure App Service'
-        environment: $(environmentName)
+      - job: Deploy
+        displayName: 'Deploy with Publish Profile'
         pool:
           vmImage: ubuntu-latest
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - download: current
-                  artifact: $(artifactName)
+        steps:
+          - download: current
+            artifact: $(artifactName)
 
-                - script: |
-                    echo "Listing contents of downloaded artifact:"
-                    ls -lR $(Pipeline.Workspace)/$(artifactName)
-                  displayName: 'List downloaded artifact contents'
+          - script: |
+              echo "Listing contents of artifact"
+              ls -lh $(Pipeline.Workspace)/$(artifactName)
+            displayName: 'List downloaded artifact contents'
 
-                - task: AzureWebApp@1
-                  displayName: 'Deploy to Azure Web App'
-                  inputs:
-                    azureSubscription: '$(serviceConnection)'
-                    appType: 'webAppLinux'
-                    appName: '$(appServiceName)'
-                    package: '$(Pipeline.Workspace)/$(artifactName)/$(Build.BuildId)-$(pythonVersion).zip'
+          - task: Bash@3
+            displayName: 'Deploy to Azure App Service using publish profile'
+            env:
+              PUBLISH_PROFILE: $(PUBLISH_PROFILE) # This should be set as a pipeline secret variable
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Save the publish profile to a file
+                echo "$PUBLISH_PROFILE" > publish-profile.xml
+
+                # Extract userName and userPWD from publish profile XML
+                userName=$(xmllint --xpath "string(//publishProfile[@publishMethod='MSDeploy']/@userName)" publish-profile.xml)
+                userPWD=$(xmllint --xpath "string(//publishProfile[@publishMethod='MSDeploy']/@userPWD)" publish-profile.xml)
+
+                # The publish URL for zipdeploy
+                ZIPDEPLOY_URL="https://$(appServiceName).scm.azurewebsites.net/api/zipdeploy"
+
+                # Find the zip artifact
+                ZIP_FILE=$(find $(Pipeline.Workspace)/$(artifactName) -type f -name "*.zip" | head -n 1)
+
+                # Deploy using curl
+                echo "Deploying $ZIP_FILE to $ZIPDEPLOY_URL"
+                curl -X POST "$ZIPDEPLOY_URL" \
+                  --user "$userName:$userPWD" \
+                  --data-binary @"$ZIP_FILE"
+
+                # Optional: Print response
+                echo "Deployment complete"
