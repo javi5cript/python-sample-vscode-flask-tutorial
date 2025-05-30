@@ -1,0 +1,22 @@
+# Makefile for Terraform deployment
+
+TF_DIR=terraform
+ENV_DIR=environments
+
+# Usage: make apply ENV=prod
+ENV ?= 20250428
+TFVARS_FILE=$(ENV_DIR)/$(ENV).tfvars
+
+init:
+	cd $(TF_DIR) && terraform init
+
+plan:
+	cd $(TF_DIR) && terraform plan -var-file=$(abspath $(TFVARS_FILE))
+
+apply:
+	cd $(TF_DIR) && terraform apply -var-file=$(abspath $(TFVARS_FILE))
+
+destroy:
+	cd $(TF_DIR) && terraform destroy -var-file=$(abspath $(TFVARS_FILE))
+
+.PHONY: init plan apply destroy

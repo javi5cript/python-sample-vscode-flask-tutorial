@@ -1,54 +1,81 @@
 trigger:
   - main
 
-pool:
-  vmImage: ubuntu-latest
+variables:
+  pythonVersion: '3.12'
+  artifactName: 'drop'
+  appServiceName: 'appservice-javi' # abstracted variable
+  serviceConnection: 'deployment' # renamed from azureSubscription
+  environmentName: 'production' # abstracted variable
 
-strategy:
-  matrix:
-    # Python310:
-    #   python.version: '3.10'
-    # Python311:
-    #   python.version: '3.11'
-    Python312:
-      python.version: '3.12'
+stages:
+  - stage: BuildAndTest
+    displayName: 'Build and Test'
+    jobs:
+      - job: Build
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
 
-steps:
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '$(python.version)'
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+            displayName: 'Install dependencies'
+            
+          - task: MicrosoftSecurityDevOps@1
+            displayName: 'Initialize CodeQL'
+            inputs:
+              languages: 'python'
+              buildtype: 'none'
 
-  - script: |
-      python -m pip install --upgrade pip
-      pip install -r requirements.txt
-    displayName: 'Install dependencies'
-    
-  - task: MicrosoftSecurityDevOps@1
-    displayName: 'Initialize CodeQL'
-    inputs:
-      languages: 'python'
-      buildtype: 'none'
+          - task: MicrosoftSecurityDevOps@1
+            displayName: 'Perform CodeQL Analysis'
 
-  - task: MicrosoftSecurityDevOps@1
-    displayName: 'Perform CodeQL Analysis'
+          - task: ArchiveFiles@2
+            displayName: 'Archive files'
+            inputs:
+              rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
+              includeRootFolder: false
+              archiveType: zip
+              archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId)-$(pythonVersion).zip'
+              replaceExistingArchive: true
 
-  - task: ArchiveFiles@2
-    displayName: 'Archive files'
-    inputs:
-      rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
-      includeRootFolder: false
-      archiveType: zip
-      archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId)-$(python.version).zip'
-      replaceExistingArchive: true
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish artifacts'
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              ArtifactName: '$(artifactName)'
+              publishLocation: 'Container'
 
-  - task: PublishBuildArtifacts@1
-    displayName: 'Publish artifacts'
-    inputs:
-      PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-      ArtifactName: 'drop'
-      publishLocation: 'Container'
+          - script: |
+              pip install pytest pytest-azurepipelines
+              pytest
+            displayName: 'Run pytest'
 
-  - script: |
-      pip install pytest pytest-azurepipelines
-      pytest
-    displayName: 'Run pytest'
+  - stage: DeployProduction
+    displayName: 'Deploy to Production'
+    dependsOn: BuildAndTest
+    condition: succeeded()
+    jobs:
+      - deployment: DeployAppService
+        displayName: 'Deploy to Azure App Service'
+        environment: $(environmentName)
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: $(artifactName)
+
+                - task: AzureWebApp@1
+                  displayName: 'Deploy to Azure Web App'
+                  inputs:
+                    azureSubscription: '$(serviceConnection)' # using service connection here
+                    appType: 'webAppLinux'
+                    appName: '$(appServiceName)'
+                    package: '$(Pipeline.Workspace)/$(artifactName)/*.zip'
