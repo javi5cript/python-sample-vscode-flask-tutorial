@@ -4,15 +4,16 @@ trigger:
 variables:
   pythonVersion: '3.12'
   artifactName: 'drop'
-  appServiceName: 'appservice-javi' # abstracted variable
-  serviceConnection: 'deployment' # renamed from azureSubscription
-  environmentName: 'production' # abstracted variable
+  appServiceName: 'appservice-javi'
+  serviceConnection: 'deployment'
+  environmentName: 'production'
 
 stages:
   - stage: BuildAndTest
     displayName: 'Build and Test'
     jobs:
       - job: Build
+        displayName: 'Build and Test'
         pool:
           vmImage: ubuntu-latest
         steps:
@@ -24,7 +25,7 @@ stages:
               python -m pip install --upgrade pip
               pip install -r requirements.txt
             displayName: 'Install dependencies'
-            
+
           - task: MicrosoftSecurityDevOps@1
             displayName: 'Initialize CodeQL'
             inputs:
@@ -33,6 +34,10 @@ stages:
 
           - task: MicrosoftSecurityDevOps@1
             displayName: 'Perform CodeQL Analysis'
+
+          - script: |
+              mkdir -p $(Build.ArtifactStagingDirectory)
+            displayName: 'Ensure artifact staging directory exists'
 
           - task: ArchiveFiles@2
             displayName: 'Archive files'
@@ -72,10 +77,15 @@ stages:
                 - download: current
                   artifact: $(artifactName)
 
+                - script: |
+                    echo "Listing contents of downloaded artifact:"
+                    ls -lR $(Pipeline.Workspace)/$(artifactName)
+                  displayName: 'List downloaded artifact contents'
+
                 - task: AzureWebApp@1
                   displayName: 'Deploy to Azure Web App'
                   inputs:
-                    azureSubscription: '$(serviceConnection)' # using service connection here
+                    azureSubscription: '$(serviceConnection)'
                     appType: 'webAppLinux'
                     appName: '$(appServiceName)'
-                    package: '$(Pipeline.Workspace)/$(artifactName)/*.zip'
+                    package: '$(Pipeline.Workspace)/$(artifactName)/$(Build.BuildId)-$(pythonVersion).zip'
