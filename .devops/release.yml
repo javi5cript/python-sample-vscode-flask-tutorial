@@ -57,8 +57,36 @@ stages:
         ArtifactName: '$(artifactName)' 
         publishLocation: 'Container'
 
+- stage: DeployToStageing
+  displayName: 'Deploy to Staging'
+  dependencies:
+  - BuildAndTest
+  jobs:
+  - deployment: DeployToStage
+    environment: 'production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadBuildArtifacts@1
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: '$(artifactName)'
+              downloadPath: '$(System.ArtifactsDirectory)'
+
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: '$(azureSubscription)'
+              publishProfilePath: '$(publishProfilePath)'
+              appName: '$(productionAppName)'
+              package: '$(System.ArtifactsDirectory)/$(artifactName)/$(Build.BuildId)-$(python.version).zip'
+
 - stage: DeployToProduction
   displayName: 'Deploy to Production'
+  dependencies:
+  - DeployToStageing
+  condition: succeeded('DeployToStageing')
   jobs:
   - deployment: DeployToProduction
     environment: 'production'
