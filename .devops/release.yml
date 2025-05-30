@@ -1,106 +1,101 @@
 trigger:
-  - main
-
+- main
+ 
+pool:
+  vmImage: ubuntu-latest
+ 
 variables:
-  pythonVersion: '3.12'
+  python.version: '3.11'
+  azureSubscription: 'CIS130 - Azure Cloud Fundamentals(d16c50e0-8aec-463b-93b6-e26efbe0bd5b)'
+  appTypeLinux: 'webAppLinux'
+  runtimeStack: 'PYTHON:3.11'
   artifactName: 'drop'
-  appServiceName: 'appservice-javi'
-  # PUBLISH_PROFILE should be set as a pipeline secret variable
+  stagingAppName: 'jcevallos-blue-webapp'
+  productionAppName: 'jcevallos-green-webapp'
+  archiveType: 'zip'
 
 stages:
-  - stage: BuildAndTest
-    displayName: 'Build and Test'
-    jobs:
-      - job: Build
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - task: UsePythonVersion@0
+- stage: BuildAndTest
+  displayName: 'Build and Test'
+  jobs:
+  - job: BuildAndTest
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(python.version)'
+      displayName: 'Use Python $(python.version)'
+ 
+    - script: |
+        python -m pip install --upgrade pip 
+        pip install -r requirements.txt 
+      displayName: 'Install dependencies'
+
+    - script: |
+        pip install pytest pytest-azurepipelines 
+        pytest 
+      displayName: 'Run tests'
+    
+    - task: ArchiveFiles@2
+      displayName: 'Archive files'
+      inputs:
+        rootFolderOrFile: $(System.DefaultWorkingDirectory)
+        includeRootFolder: false
+        archiveType: $(archiveType)
+        archiveFile: $(Build.ArtifactStagingDirectory)/$(Build.BuildId)-$(python.version).zip 
+        replaceExistingArchive: true 
+
+    - task: PublishBuildArtifacts@1 
+      inputs: 
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)' 
+        ArtifactName: '$(artifactName)' 
+        publishLocation: 'Container'
+
+- stage: DeployToStaging
+  displayName: 'Deploy to Staging'
+  dependsOn: BuildAndTest
+  jobs:
+  - deployment: DeployToStaging
+    environment: 'staging'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadBuildArtifacts@1
             inputs:
-              versionSpec: '$(pythonVersion)'
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: '$(artifactName)'
+              downloadPath: '$(System.ArtifactsDirectory)'
 
-          - script: |
-              python -m pip install --upgrade pip
-              pip install -r requirements.txt
-            displayName: 'Install dependencies'
-
-          - task: MicrosoftSecurityDevOps@1
-            displayName: 'Initialize CodeQL'
+          - task: AzureWebApp@1
             inputs:
-              languages: 'python'
-              buildtype: 'none'
+              azureSubscription: '$(azureSubscription)'
+              appType: '$(appTypeLinux)'
+              appName: '$(stagingAppName)'
+              package: '$(System.ArtifactsDirectory)/$(artifactName)/$(Build.BuildId)-$(python.version).zip'
+              runtimeStack: '$(runtimeStack)'
 
-          - task: MicrosoftSecurityDevOps@1
-            displayName: 'Perform CodeQL Analysis'
-
-          - script: |
-              mkdir -p $(Build.ArtifactStagingDirectory)
-            displayName: 'Ensure artifact staging directory exists'
-
-          - task: ArchiveFiles@2
-            displayName: 'Archive files'
+- stage: DeployToProduction
+  displayName: 'Deploy to Production'
+  dependsOn: DeployToStaging
+  jobs:
+  - deployment: DeployToProduction
+    environment: 'production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadBuildArtifacts@1
             inputs:
-              rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
-              includeRootFolder: false
-              archiveType: zip
-              archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId)-$(pythonVersion).zip'
-              replaceExistingArchive: true
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: '$(artifactName)'
+              downloadPath: '$(System.ArtifactsDirectory)'
 
-          - task: PublishBuildArtifacts@1
-            displayName: 'Publish artifacts'
+          - task: AzureWebApp@1
             inputs:
-              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-              ArtifactName: '$(artifactName)'
-              publishLocation: 'Container'
-
-          - script: |
-              pip install pytest pytest-azurepipelines
-              pytest
-            displayName: 'Run pytest'
-
-  - stage: DeployProduction
-    displayName: 'Deploy to Production'
-    dependsOn: BuildAndTest
-    condition: succeeded()
-    jobs:
-      - job: Deploy
-        displayName: 'Deploy with Publish Profile'
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - download: current
-            artifact: $(artifactName)
-
-          - script: |
-              echo "Listing contents of artifact"
-              ls -lh $(Pipeline.Workspace)/$(artifactName)
-            displayName: 'List downloaded artifact contents'
-
-          - task: Bash@3
-            displayName: 'Deploy to Azure App Service using publish profile'
-            env:
-              PUBLISH_PROFILE: $(PUBLISH_PROFILE) # This should be set as a pipeline secret variable
-            inputs:
-              targetType: 'inline'
-              script: |
-                # Save the publish profile to a file
-                echo "$PUBLISH_PROFILE" > publish-profile.xml
-
-                # Extract userName and userPWD from publish profile XML
-                userName=$(xmllint --xpath "string(//publishProfile[@publishMethod='MSDeploy']/@userName)" publish-profile.xml)
-                userPWD=$(xmllint --xpath "string(//publishProfile[@publishMethod='MSDeploy']/@userPWD)" publish-profile.xml)
-
-                # The publish URL for zipdeploy
-                ZIPDEPLOY_URL="https://$(appServiceName).scm.azurewebsites.net/api/zipdeploy"
-
-                # Find the zip artifact
-                ZIP_FILE=$(find $(Pipeline.Workspace)/$(artifactName) -type f -name "*.zip" | head -n 1)
-
-                # Deploy using curl
-                echo "Deploying $ZIP_FILE to $ZIPDEPLOY_URL"
-                curl -X POST "$ZIPDEPLOY_URL" \
-                  --user "$userName:$userPWD" \
-                  --data-binary @"$ZIP_FILE"
-
-                # Optional: Print response
-                echo "Deployment complete"
+              azureSubscription: '$(azureSubscription)'
+              appType: '$(appTypeLinux)'
+              appName: '$(productionAppName)'
+              package: '$(System.ArtifactsDirectory)/$(artifactName)/$(Build.BuildId)-$(python.version).zip'
+              runtimeStack: '$(runtimeStack)'
