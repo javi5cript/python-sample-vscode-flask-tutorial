@@ -6,6 +6,8 @@ pool:
  
 variables:
 - group: publish
+- name: azureSubscription
+  value: 'deployment'
 - name: python.version
   value: '3.11'
 - name: appTypeLinux
@@ -73,6 +75,7 @@ stages:
 
           - task: AzureWebApp@1
             inputs:
+              azureSubscription: '$(azureSubscription)'
               publishProfilePath: '$(publishProfilePath)'
               appName: '$(productionAppName)'
               package: '$(System.ArtifactsDirectory)/$(artifactName)/$(Build.BuildId)-$(python.version).zip'
