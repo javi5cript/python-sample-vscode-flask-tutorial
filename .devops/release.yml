@@ -6,12 +6,14 @@ pool:
  
 variables:
   python.version: '3.11'
-  azureSubscription: 'deployment'
   appTypeLinux: 'webAppLinux'
   runtimeStack: 'PYTHON:3.11'
   artifactName: 'drop'
   productionAppName: 'appservice-javi'
   archiveType: 'zip'
+
+variables:
+  - group: publish
 
 stages:
 - stage: BuildAndTest
@@ -67,8 +69,6 @@ stages:
 
           - task: AzureWebApp@1
             inputs:
-              azureSubscription: '$(azureSubscription)'
-              appType: '$(appTypeLinux)'
+              publishProfilePath: '$(publishProfilePath)'
               appName: '$(productionAppName)'
               package: '$(System.ArtifactsDirectory)/$(artifactName)/$(Build.BuildId)-$(python.version).zip'
-              runtimeStack: '$(runtimeStack)'
