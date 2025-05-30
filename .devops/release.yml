@@ -51,7 +51,6 @@ stages:
 
 - stage: DeployToProduction
   displayName: 'Deploy to Production'
-  dependsOn: DeployToStaging
   jobs:
   - deployment: DeployToProduction
     environment: 'production'
