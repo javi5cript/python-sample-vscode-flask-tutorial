@@ -6,7 +6,7 @@ pool:
  
 variables:
   python.version: '3.11'
-  azureSubscription: 'CIS130 - Azure Cloud Fundamentals(d16c50e0-8aec-463b-93b6-e26efbe0bd5b)'
+  azureSubscription: 'deployment'
   appTypeLinux: 'webAppLinux'
   runtimeStack: 'PYTHON:3.11'
   artifactName: 'drop'
