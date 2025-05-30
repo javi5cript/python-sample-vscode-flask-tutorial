@@ -10,8 +10,7 @@ variables:
   appTypeLinux: 'webAppLinux'
   runtimeStack: 'PYTHON:3.11'
   artifactName: 'drop'
-  stagingAppName: 'jcevallos-blue-webapp'
-  productionAppName: 'jcevallos-green-webapp'
+  productionAppName: 'appservice-javi'
   archiveType: 'zip'
 
 stages:
@@ -49,31 +48,6 @@ stages:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)' 
         ArtifactName: '$(artifactName)' 
         publishLocation: 'Container'
-
-- stage: DeployToStaging
-  displayName: 'Deploy to Staging'
-  dependsOn: BuildAndTest
-  jobs:
-  - deployment: DeployToStaging
-    environment: 'staging'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - task: DownloadBuildArtifacts@1
-            inputs:
-              buildType: 'current'
-              downloadType: 'single'
-              artifactName: '$(artifactName)'
-              downloadPath: '$(System.ArtifactsDirectory)'
-
-          - task: AzureWebApp@1
-            inputs:
-              azureSubscription: '$(azureSubscription)'
-              appType: '$(appTypeLinux)'
-              appName: '$(stagingAppName)'
-              package: '$(System.ArtifactsDirectory)/$(artifactName)/$(Build.BuildId)-$(python.version).zip'
-              runtimeStack: '$(runtimeStack)'
 
 - stage: DeployToProduction
   displayName: 'Deploy to Production'
