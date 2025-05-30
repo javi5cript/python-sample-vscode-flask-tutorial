@@ -59,8 +59,7 @@ stages:
 
 - stage: DeployToStageing
   displayName: 'Deploy to Staging'
-  dependencies:
-  - BuildAndTest
+  dependsOn: BuildAndTest
   jobs:
   - deployment: DeployToStage
     environment: 'production'
@@ -84,8 +83,7 @@ stages:
 
 - stage: DeployToProduction
   displayName: 'Deploy to Production'
-  dependencies:
-  - DeployToStageing
+  dependsOn: DeployToStageing
   condition: succeeded('DeployToStageing')
   jobs:
   - deployment: DeployToProduction
