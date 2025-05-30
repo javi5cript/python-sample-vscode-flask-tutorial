@@ -5,15 +5,19 @@ pool:
   vmImage: ubuntu-latest
  
 variables:
-  python.version: '3.11'
-  appTypeLinux: 'webAppLinux'
-  runtimeStack: 'PYTHON:3.11'
-  artifactName: 'drop'
-  productionAppName: 'appservice-javi'
-  archiveType: 'zip'
-
-variables:
-  - group: publish
+- group: publish
+- name: python.version
+  value: '3.11'
+- name: appTypeLinux
+  value: 'webAppLinux'
+- name: runtimeStack
+  value: 'PYTHON:3.11'
+- name: artifactName
+  value: 'drop'
+- name: productionAppName
+  value: 'appservice-javi'
+- name: archiveType
+  value: 'zip'
 
 stages:
 - stage: BuildAndTest
